@@ -1,0 +1,1145 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Tanks</name>
+    </assembly>
+    <members>
+        <member name="T:GridWorld.TanksVision">
+            <summary>
+            Contains the code needed to determine whether a tank with a particular facing in one GridSquare can see another GridSquare,
+            and to determine the GridSquares that can be seen by a Tank with a particular facing looking from a particular square.
+            A very conservative approach to vision is taken, where a (virtual) straight line is drawn from the centre of the square
+            that we are looking from (xf,yf) to the square we are looking to (xt,yt). If this virtual line passes through any square (even touches
+            the corner of a given square) then (xt,yt) cannot be seen.
+            </summary>
+        </member>
+        <member name="M:GridWorld.TanksVision.#ctor(GridWorld.GridSquare[0:,0:],System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Create an object for tanks vision.
+            </summary>
+        </member>
+        <member name="M:GridWorld.TanksVision.TestVisionCone">
+            <summary>
+            Generate a lot of output which demonstrates what can be seen from each square in the Grid
+            with each Facing. For test purposes only.
+            </summary>
+        </member>
+        <member name="M:GridWorld.TanksVision.IsBlocked(System.Int32,System.Int32)">
+            <summary>
+            Does (x,y) block vision? A null GridSquare always blocks vision.
+            </summary>
+        </member>
+        <member name="M:GridWorld.TanksVision.GetVisibleSquares(GridWorld.PlayerWorldState.Facing,System.Int32,System.Int32)">
+            <summary>
+            Get all of the squares which are visible from (xf,yf) with Facing dir.
+            This is currently somewhat inefficient as it works out for every GridSquare
+            in the vision cone whether it can be seen or not.
+            </summary>
+        </member>
+        <member name="M:GridWorld.TanksVision.CanSee(GridWorld.PlayerWorldState.Facing,System.Int32,System.Int32,System.Int32,System.Int32)">
+            <summary>
+            From (xf,yf) with facing dir can I see (xt,yt)?
+            </summary>
+        </member>
+        <member name="M:GridWorld.TanksVision.CanSee_xb_le_yb(System.Int32,System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Checks each intermediate square between from (xf,yf) to (xt,yt) to see if any are blocked.
+            Requires that |yt-yf|>=|xt-xf| since each time I increment y it needs to check the squares
+            above and below where the intersection line from (xf,yf) to (xt,yt) crosses a square boundary.
+            (if we do not have |yt-yf|>=|xt-xf| then this approach misses some squares).
+            </summary>
+        </member>
+        <member name="M:GridWorld.TanksVision.CanSee_yb_le_xb(System.Int32,System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Checks each intermediate square between from (xf,yf) to (xt,yt) to see if any are blocked.
+            Requires that |xt-xf|>=|yt-yf| since each time I increment x it needs to check the squares
+            above and below where the intersection line from (xf,yf) to (xt,yt) crosses a square boundary.
+            (if we do not have |xt-xf|>=|yt-yf| then this approach misses some squares).
+            </summary>
+        </member>
+        <member name="M:GridWorld.TanksVision.VisibleSquareToString(GridWorld.PlayerWorldState.Facing,System.Int32,System.Int32,System.Collections.Generic.List{GridWorld.GridSquare})">
+            <summary>
+            Return in string format the GridSquares that can be seen from (xf,yf) by a tank with Facing dir. Assumes that the GridSquares have
+            already been found and are in vissq. The facing of the tank is denoted by "^", ">", "v" etc. 
+            "+" denotes an empty square that is visible,
+            "*" denotes a blocked square that is visible,
+            "." denotes an empty square that is not visible,
+            "#" denotes a blocked square that is not visible.
+            </summary>
+        </member>
+        <member name="T:GridWorld.PlayerWorldState">
+            <summary>
+            PlayerWorldState contains all of the data available to the player at the start of
+            each turn. In a game of incomplete information (e.g. Terrarium) this will
+            be only part of the world state. Both PlayerWorldState and WorldState are 
+            derived from BaseWorldState which contains common functionality.
+            </summary>
+        </member>
+        <member name="F:GridWorld.PlayerWorldState.newStateInformationThisTurn">
+            <summary>
+            Is there new information on the number of shots, kills, or squares seen this turn?
+            </summary>
+        </member>
+        <member name="F:GridWorld.PlayerWorldState.hasWorldStateChangeForThisTurn">
+            <summary>
+            Is there a WordStateChange for this turn whose NewContents/NewPlayer is this tanks/player?
+            </summary>
+        </member>
+        <member name="F:GridWorld.PlayerWorldState.MoveDestinationFinalised">
+            <summary>
+            Has this player's Tank's move destination been finally determined?
+            Used when actioning all moves in WorldState.
+            </summary>
+        </member>
+        <member name="M:GridWorld.PlayerWorldState.GetFacing(GridWorld.GridSquare.ContentType)">
+            <summary>
+            Convert a GridSquare.ContentType to a Facing if it is one of TankUp, TankDown, TankLeft, TankRight,
+            otherwise throw an exception.
+            </summary>
+        </member>
+        <member name="F:GridWorld.PlayerWorldState.myFacing">
+            <summary>
+            Your tank's facing.
+            </summary>
+        </member>
+        <member name="F:GridWorld.PlayerWorldState.grid">
+            <summary>
+            The current grid - actually just a local pointer to the WorldState grid.
+            </summary>
+        </member>
+        <member name="M:GridWorld.PlayerWorldState.IsVisible(GridWorld.GridSquare)">
+            <summary>
+            Returns whether the current square can be seen by the player 
+            (purely for the purposes of the ToString() function of the baseplayer class)
+            </summary>
+            <param name="isvis"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.PlayerWorldState.IsTank(GridWorld.GridSquare)">
+            <summary>
+            Returns if the GridSquare given contains a tank
+            </summary>
+            <param name="gs"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.PlayerWorldState.ToString">
+            <summary>
+            Output the Tanks board in a readable text format.
+            . = empty square, # = Rock, D = Destroyed Tank, space = NotVisible, 
+            ^,v,>, = tank with facing (including your own tank).
+            The world is enclosed by a border.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.PlayerWorldState.CanSee(GridWorld.PlayerWorldState.Facing,System.Int32,System.Int32,System.Int32,System.Int32,GridWorld.GridSquare[0:,0:])">
+            <summary>
+            From (xfrom,yfrom) with facing dir can I see (xto,yto)?
+            </summary>
+        </member>
+        <member name="M:GridWorld.PlayerWorldState.GetTooltipText">
+            <summary>
+            Return the text displayed at the bottom of any tooltip for one of this players tanks.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.PlayerWorldState.GetSymbol(GridWorld.GridSquare.ContentType)">
+            <summary>
+            Return the output symbol for this GridSquare
+            </summary>
+            <param name="ct"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.PlayerWorldState.VisibleSquaresToString">
+            <summary>
+            Return in string format the GridSquares that can be seen by your tank. 
+            The facing of each tank is denoted by "^", ">", "v" etc. 
+            "." denotes an empty square,
+            "^", ">","v" etc. denotes an enemy tank and its facing,
+            "#" denotes a rock,
+            "D" denotes a destroyed tank.
+            </summary>
+        </member>
+        <member name="F:GridWorld.PlayerWorldState.Tanks">
+            <summary>
+            The Tanks for this player.
+            </summary>
+        </member>
+        <member name="M:GridWorld.PlayerWorldState.AddTank(GridWorld.GridSquare)">
+            <summary>
+            Add a new Tank
+            </summary>
+        </member>
+        <member name="M:GridWorld.PlayerWorldState.RemoveAllTanks">
+            <summary>
+            Remove all Tanks (player's Tank has been destroyed).
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.EmptySquaresSeen">
+            <summary>
+            The number of empty squares seen so far by your tank, including squares occupied by your tank, where you have seen an opposing or destroyed tank,
+            and squares occupied by enemy tanks which you detected firing.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.RockSquaresSeen">
+            <summary>
+            The number of rock squares seen so far by your tank.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.ShotsFired">
+            <summary>
+            The number of shots fired by your tank so far.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.Kills">
+            <summary>
+            The number of tanks destroyed by your tank so far. If you and another player both destroy the same
+            tank on a given turn, then both are credited with a kill.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.Score">
+            <summary>
+            Your tank's score.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.MaximumVisionDistance">
+            <summary>
+            The maximum distance, in squares, that your tank can see.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.MyGridSquare">
+            <summary>
+            The GridSquare containing your tank.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.ScorePerEmptySquareSeen">
+            <summary>
+            The score obtained for viewing an Empty GridSquare for the first time (including squares occupied by your tank, where you have seen an opposing or destroyed tank,
+            and squares occupied by enemy tanks which you detected firing).
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.ScorePerRockSquareSeen">
+            <summary>
+            The score available for viewing a Rock GridSquare.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.ScorePerOpposingTankDestroyed">
+            <summary>
+            The score for destroying an opponent's Tank.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.MyFacing">
+            <summary>
+            The direction in which your Tank is pointing, Up, Down, Left or Right.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.PlayerCount">
+            <summary>
+            The maximum number of players who normally play in this terrain. 
+            If players have been eliminated this will be greater than the
+            number actually playing.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.GridHeightInSquares">
+            <summary>
+            The height of the grid in squares.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.GridWidthInSquares">
+            <summary>
+            The width of the grid in squares.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.TurnNumber">
+            <summary>
+            The current turn number. For a game playing/replaying this always reflects the turn currently just about to be played/replayed.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.ID">
+            <summary>
+            The ID number of this player (Player 1 has ID = 1, PLayer 2 has ID = 2 etc). 
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.MyVisibleSquares">
+            <summary>
+            A List of the GridSquares visible from your Tank's current position and facing.
+            You have a 90-degree cone of vision (45 degrees either side of the direction you are pointing),
+            where rock, tanks and destroyed tanks hide squares behind them,
+            and a limited vision range MaximumVisionDistance which can vary from terrain to terrain.
+            </summary>
+        </member>
+        <member name="P:GridWorld.PlayerWorldState.Item(System.Int32,System.Int32)">
+            <summary>
+            Access grid square (x,y).
+            </summary>
+        </member>
+        <member name="T:GridWorld.PlayerWorldState.Facing">
+            <summary>
+            The directions in which the Tank's turret can point.
+            </summary>
+        </member>
+        <member name="T:GridWorld.GameSpecificParametersForm">
+            <summary>
+            Summary description for GameSpecificParametersForm.
+            </summary>
+        </member>
+        <member name="F:GridWorld.GameSpecificParametersForm.components">
+            <summary>
+            Required designer variable.
+            </summary>
+        </member>
+        <member name="M:GridWorld.GameSpecificParametersForm.Dispose(System.Boolean)">
+            <summary>
+            Clean up any resources being used.
+            </summary>
+        </member>
+        <member name="M:GridWorld.GameSpecificParametersForm.InitializeComponent">
+            <summary>
+            Required method for Designer support - do not modify
+            the contents of this method with the code editor.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GameSpecificParametersForm.Parameters">
+            <summary>
+            Gets or Sets the GameSpecificParameters for this form.
+            </summary>
+        </member>
+        <member name="T:GridWorld.Command">
+            <summary>
+            A command contains the data for a single instruction from a player (interactive or AI).
+            The only command in Infectious! is to move an active colony from (XFrom, YFrom) to (XTo, YTo)
+            </summary>
+        </member>
+        <member name="M:GridWorld.Command.#ctor(GridWorld.Command.Move,System.Boolean)">
+            <summary>
+            Command your tank to Stay, Up, Down, Left, Right, RotateLeft or RotateRight
+            and tell it whether or not to shoot.
+            </summary>
+        </member>
+        <member name="M:GridWorld.Command.ToString">
+            <summary>
+            Returns a string representation of this Command.
+            </summary>
+        </member>
+        <member name="P:GridWorld.Command.CommandMove">
+            <summary>
+            The Move part of this Command, one of Stay, Up, Down, Left, Right, RotateLeft or RotateRight.
+            </summary>
+        </member>
+        <member name="P:GridWorld.Command.CommandShoot">
+            <summary>
+            The Shoot part of this command. If true a shot will be fired after moving.
+            </summary>
+        </member>
+        <member name="T:GridWorld.Command.Move">
+            <summary>
+            The possible ways that a tank may move: Stay, Up, Down, Left, Right, RotateLeft or RotateRight.
+            </summary>
+        </member>
+        <member name="T:GridWorld.WorldState">
+            <summary>
+            WorldState contains complete information about the state of the game world.
+            In a game of incomplete information, the data herein is a superset of the
+            data in each PlayerWorldState. Even in a game of complete information, the 
+            presentation of the data in WorldState (used for game rules management)
+            and of the data in PlayerWorldState (used for AI) may be different. Both
+            PlayerWorldState and WorldState are derived from BaseWorldState which 
+            contains common functionality.
+            </summary>
+        </member>
+        <member name="F:GridWorld.WorldState.grid">
+            <summary>
+            The current grid.
+            </summary>
+        </member>
+        <member name="F:GridWorld.WorldState.gameOverText">
+            <summary>
+            null string until game end.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.isValidPickupPiece(GridWorld.GridSquare,System.Int32)">
+            <summary>
+            Checks to see if the contents of the GridSquare can be picked up by a user.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.IsLegal(System.Int32,GridWorld.Command)">
+            <summary>
+            Checks whether command c moves player p to a square without a fixed obstacle, within the grid.
+            </summary>
+            <param name="p">The ID of the player issuing the command, 1,2,3,...</param>
+            <param name="c">The command to be tested for legality</param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.WorldState.GetToolTipTextForGridSquare(System.Int32,System.Int32)">
+            <summary>
+            Get the tooltip text for grid square (x,y). Throws an exception if (x,y) out of range.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.GetPlayerIDForGridSquare(System.Int32,System.Int32)">
+            <summary>
+            Get the player number for grid square (x,y). Throws an exception if (x,y) out of range.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.ToString">
+            <summary>
+            Output the Infectious! board in a readable text format (for at most 10 players).
+            . = empty square, # = impassable square, 
+            1 = player 1 active colony, [Shift][1] = ! = player 1 passive colony,
+            2 = player 2 active colony, [Shift][2] = " = player 2 passive colony, 
+            3 = player 3 active colony, [Shift][3] = £ = player 3 passive colony,
+            ...
+            9 = player 9 active colony, [Shift][9] = ( = player 9 passive colony,
+            0 = player 10 active colony, [Shift][0] = ) = player 10 passive colony.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="F:GridWorld.WorldState.turnCommandsAvailable">
+            <summary>
+            Does the current interactive (or AI) player have some commands for the current turn entered by the user?
+            </summary>
+        </member>
+        <member name="F:GridWorld.WorldState.theInteractivePlayerCommand">
+            <summary>
+            A list of commands for an InteractivePlayer.
+            </summary>
+        </member>
+        <member name="F:GridWorld.WorldState.worldStateChanges">
+            <summary>
+            An arrayList containing all WorldStateChanges.
+            Note WorldStateChanges associated with turn 0 are terrain instructions.
+            </summary>
+        </member>
+        <member name="F:GridWorld.WorldState.turnIndexes">
+            <summary>
+            Pointers to the first element of each turn in the worldStateChanges array.
+            </summary>
+        </member>
+        <member name="F:GridWorld.WorldState.gameFinished">
+            <summary>
+            Is the current game finished?
+            </summary>
+        </member>
+        <member name="F:GridWorld.WorldState.playerScores">
+            <summary>
+            The current score for each player.
+            </summary>
+        </member>
+        <member name="F:GridWorld.WorldState.playerWorldStates">
+            <summary>
+            The world state as seen by each player
+            </summary>
+        </member>
+        <member name="F:GridWorld.WorldState.terrainName">
+            <summary>
+            The name of the terrain that the current game started on.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.#ctor">
+            <summary>
+            Create a "blank" WorldState that must then be "filled in" by a call to Initialise()
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.InitialiseTerrain(System.Int32,System.Int32,System.Collections.ArrayList,System.Int32,System.String)">
+            <summary>
+            Creates a worldstate for the players passed to it and game information contained in 
+            the wscs WorldStateChange array. Only actions changes to the grid for turn 0.
+            </summary>
+            <param name="tn">Terrain Name</param>
+        </member>
+        <member name="M:GridWorld.WorldState.UpdateStateInformationInTheGridAndThisTurnsWorldStateChanges">
+            <summary>
+            Update the newstate for any WorldStateChange where the NewContents is a tank that has seen new squares 
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.ActionCommand(System.Int32,GridWorld.ICommand)">
+            <summary>
+            Attempt to modify the WorldState according to command c from player p.
+            Return true if successful and false otherwise. Does not test for ambiguity
+            of the command. Also checks for game end.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.ActionAllCommands">
+            <summary>
+            Performs all the actions necessary to run the game
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.ActionAndFinaliseMoveDestinationForAllMovesToEmptySquares">
+            <summary>
+            Do all possible moves to place Tanks on empty squares. Return true if at least one move succeeded.
+            (i.e. a new empty square was created).
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.ActionTankMove(System.Int32)">
+            <summary>
+            When you call this function the myCommand for this player has been confirmed as legal.
+            Update the Grid and add the WorldStateChanges for this move.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.SetXToAndYToForAllTanksAndChangeIllegalMovesToStay">
+            <summary>
+            Set the destination square (xto,yto) for each tank (and if the destination square would be off the board
+            or to a fixed obstacle (destroyed tank or rock) change the command to "Stay" and do not change the shooting decision.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.UpdateVisibleSquaresAndWorldStateScores">
+            <summary>
+            Scores the players for new squares seen and update player lists of visible squares
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.ChangeCrossoverMovesToStay">
+            <summary>
+            This changes any player's moves which would involve "crossing over"
+            (tank at (p1,p2) tries to move to (q1,q2), and tank at (q1,q2) tries to move to (p1,p2)) OR
+            (tanks at (p1,p2) and (q1,q2) both try to move to the same square)
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.RemoveMovesWhereTanksMoveToSameSquare">
+            <summary>
+            If two player tanks move to the same square, change both to
+            "Stay" (Should shoot be disabled??) 
+            ++: both may die if both shoot
+            --: one may lose out if only one shooting
+            Compromise?: if both are going to shoot, cancel both, else
+            let the one shooter fire.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.ChangeIllegalMovesToStay">
+            <summary>
+            This changes any illegal move to "Stay", maintaining their "shoot" command. 
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.DoTankShooting">
+            <summary>
+            Fires the player's turret at it's current facing
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.RemoveDeadTanks">
+            <summary>
+            Removes the tanks that were destroyed this turn from play.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.PassMove(System.Int32)">
+            <summary>
+            Enter a pass move.
+            </summary>
+            <param name="playerid"></param>
+        </member>
+        <member name="M:GridWorld.WorldState.GetNewStateKills(GridWorld.WorldStateChange)">
+            <summary>
+            extract the number of kills from the NewState string of wsc
+            which is in the format ShotsFired,Kills,OreSquaresSeen,RockSquaresSeen
+            </summary>
+            <param name="wsc"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.WorldState.GetNewStateShots(GridWorld.WorldStateChange)">
+            <summary>
+            extract the number of ShotsFired from the NewState string of wsc
+            which is in the format ShotsFired,Kills,OreSquaresSeen,RockSquaresSeen
+            </summary>
+            <param name="wsc"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.WorldState.GetNewStateOreSquaresSeen(GridWorld.WorldStateChange)">
+            <summary>
+            extract the number of OreSquaresSeen from the NewState string of wsc
+            which is in the format ShotsFired,Kills,OreSquaresSeen,RockSquaresSeen
+            </summary>
+            <param name="wsc"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.WorldState.GetNewStateRockSquaresSeen(GridWorld.WorldStateChange)">
+            <summary>
+            extract the number of RockSquaresSeen from the NewState string of wsc
+            which is in the format ShotsFired,Kills,OreSquaresSeen,RockSquaresSeen
+            </summary>
+            <param name="wsc"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.WorldState.ActionWorldStateChange(GridWorld.WorldStateChange)">
+            <summary>
+            The only way to change the grid. Action a given WorldStateChange and update variables for
+            active colonies and scores.
+            </summary>
+            <param name="wsc">The WorldStateChange</param>
+            <param name="updateplayerstateinfo">Should tank state info (shots, squares seen etc.) be updated?</param>
+        </member>
+        <member name="M:GridWorld.WorldState.IsLivingTank(GridWorld.GridSquare.ContentType)">
+            <summary>
+            Is ct a living tank in one of the four directions?
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.FastForwardToEndOfReplay">
+            <summary>
+            Go to the end of the replay file, changing the grid.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.AddWorldStateChange(GridWorld.WorldStateChange,System.Boolean)">
+            <summary>
+            The only function allowed to change the world state (apart from UndoLastWorldStateChange below). 
+            </summary>
+            <param name="wsc"></param>
+            <param name="changeGrid">Should the 2D grid array be changed or not (i.e do I actually execute this turn)?</param>
+        </member>
+        <member name="M:GridWorld.WorldState.UndoLastWorldStateChange">
+            <summary>
+            Undo the last world state change and restore the grid.
+            Returns the world state change corresponding to what was done
+            i.e. the reverse of the WorldStateChange removed
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.GetGridSquareChangesForCurrentlyNonEmptySquares">
+            <summary>
+            Get the current state of the board in terrain form by
+            1. Making all WorldState changes have a turn number of zero
+            2. Only considering the last WorldStateChange for each GridSquare, and ignoring that if the
+            transition is to being empty
+            </summary>
+            <returns>Arraylist of WorldStateChanges for currently non-empty grid squares</returns>
+        </member>
+        <member name="M:GridWorld.WorldState.ChangeToTerrain">
+            <summary>
+            Changes the current WorldState (as at the current WorldState.TurnNumber) to a terrain file 
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.ActionGridSquareChange(System.Int32,System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Grid square changes can *only* be actioned by calling this function, which updates the global
+            worldStateChanges arrays as well as PlayerWorldState worldStateChanges.
+            </summary>
+            <param name="x">x-coordinate</param>
+            <param name="y">y-coordinate</param>
+            <param name="newct">The new GridSquare.ContentType.</param>
+            <param name="newplayer">The ID of the new player for this square.</param>
+            <returnIndexes></returnIndexes>
+        </member>
+        <member name="M:GridWorld.WorldState.GetPlayerScoreString(System.Int32)">
+            <summary>
+            Return the very small information for the player which will be displayed in the GridWorld client - usually Score.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.GetPlayerScore(System.Int32)">
+            <summary>
+            Return the player score for Player playerid.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.CheckForGameEnd">
+            <summary>
+            The game is finished when no player can make another legal move.
+            This function can be made much more efficient by maintaining local
+            data structures for whether a player can move and where active colonies are.
+            </summary>
+            <returnIndexes></returnIndexes>
+        </member>
+        <member name="M:GridWorld.WorldState.CreateGameOverText(System.String)">
+            <summary>
+            Get the game over text that will appear on the form - assuming the game is over.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.WorldState.GetPlayerWorldState(System.Int32)">
+            <summary>
+            Get the player version of the world state.
+            </summary>
+            <param name="playerid">The ID (= 1,2,3,...) of the player whose world state we are getting. </param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.WorldState.GetWorldStateChangesForTurn(System.Int32)">
+            <summary>
+            Returns all WorldStateChange objects for the given turn. Note that it needs to return a null ArrayList if the turn is
+            out of range.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.GetAllWorldStateChangesFromTurn(System.Int32)">
+            <summary>
+            Returns all WorldStateChange objects from turn to the end of the game (inclusive)
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.UndoLastTurnWithWorldStateChanges">
+            <summary>
+            Find the most recent turn which has some WorldStateChanges. Undo this turn
+            and return an ArrayList which will tell the graphics how the turn should be undone.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.WorldState.UndoLastReplayTurnWithWorldStateChanges">
+            <summary>
+            Find the most previous replay turn which has some WorldStateChanges. Undo this turn
+            and return an ArrayList which will tell the graphics how the turn should be undone.
+            If there are no world state changes in any previous turn then return an empty ArrayList
+            and set TurnNumber == 1.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.WorldState.ActionReplayTurn">
+            <summary>
+            Update the grid, scores, active colonies for the TurnNumber replay turn.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.PlayerHasAnyMoves(System.Int32)">
+            <summary>
+            Determines if the player can make any moves
+            </summary>
+            <param name="playerid"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.WorldState.GetPlayerTooltip(System.Int32)">
+            <summary>
+            Gets information about this player.
+            </summary>
+        </member>
+        <member name="M:GridWorld.WorldState.GetGameSpecificResult(System.Int32,System.Double[],System.Boolean[])">
+            <summary>
+            Get the part of the result of the game currently represented by the current WorldState, which is specific to Infectious!.
+            (i.e. Score and Rank).
+            The way to read the results is given in GameSpecifics.TheGameSpecifics.TheWebServerResultsFormat
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.PlayerCount">
+            <summary>
+            The maximum number of players who normally play in this GridWorld. If insufficient
+            players are loaded or players have been eliminated this will be greater than the
+            number actually playing.
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.ActivePlayerCount">
+            <summary>
+            The number of players who are currently active (i.e. have moves) in this GridWorld
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.GameOverText">
+            <summary>
+            A string which is set as the StatusBar text when the Game has finished.
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.GridHeightInSquares">
+            <summary>
+            The height of the grid in squares.
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.GridWidthInSquares">
+            <summary>
+            The width of the grid in squares.
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.Grid">
+            <summary>
+            The current grid.
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.Item(System.Int32,System.Int32)">
+            <summary>
+            Access grid square (x,y).
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.TurnCommandsAvailable">
+            <summary>
+            Does the current interactive (or AI) player have some commands for the current turn entered by the user?
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.TheInteractivePlayerCommand">
+            <summary>
+            Does the current interactive (or AI) player have some commands for the current turn entered by the user?
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.WorldStateChanges">
+            <summary>
+            All the WorldStateChanges for this WorldState
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.GameFinished">
+            <summary>
+            Is the current game finished?
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.TurnNumber">
+            <summary>
+            Set or get turn number or the turn currently being played. For a replay file this will not be the last turn. While
+            a game is playing this will be the next turn for which we do not yet have any moves.
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.LastActiveTurnIndex">
+            <summary>
+            What is the TurnIndex of the last turn for which we have a WorldStateChange?
+            Return -1 if there are currently no WorldStateChanges at all.
+            </summary>
+        </member>
+        <member name="P:GridWorld.WorldState.TerrainName">
+            <summary>
+            Returns the name of this terrain
+            </summary>
+        </member>
+        <member name="T:GridWorld.InputEventHandlers">
+            <summary>
+            Has code to deal with events:
+            1. Start of an interactive player turn
+            2. MouseDown.
+            3. MouseUp.
+            4. KeyDown.
+            5. KeyUp.
+            6. Pass Turn button in form clicked.
+            Infectious! only uses 2 and 3.
+            Has a handle for the GridWorldForm and for the WorldState
+            </summary>
+        </member>
+        <member name="F:GridWorld.InputEventHandlers.gameGraphics">
+            <summary>
+            The game graphics for this game - useful for getting images for mouse pointers etc.
+            </summary>
+        </member>
+        <member name="F:GridWorld.InputEventHandlers.worldState">
+            <summary>
+            Thw WorldState for the client game.
+            </summary>
+        </member>
+        <member name="F:GridWorld.InputEventHandlers.ThisPlayerTankClicked">
+            <summary>
+             Determines if a GridSquare holding this player's Tank has been clicked 
+             </summary>
+        </member>
+        <member name="F:GridWorld.InputEventHandlers.TankLocation">
+            <summary>
+            This is the location of the last ActiveColony to recieve a MouseDown event from a user.
+            </summary>
+        </member>
+        <member name="F:GridWorld.InputEventHandlers.LastTerrainButtonIndex">
+            <summary>
+            The last ContentType button to be pushed in the terrain editor.
+            </summary>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.GetToolTipTextName(System.Int32)">
+            <summary>
+            The contents of a square, one of {Empty, Impassable, PassiveColony, ActiveColony}.
+            Used for tooltip names on buttons.
+            </summary>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.TerrainButtonPressEventHandler(System.Int32)">
+            <summary>
+            This function is called when a (terrain type) button is pressed in the terrain editor.
+            </summary>
+            <param name="terrainbuttonindex">The index of the button pressed (-1 = "No button"</param>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.MouseDownPlayModeEventHandler(System.Windows.Forms.MouseEventArgs,System.Drawing.Point,System.Windows.Forms.Form)">
+            <summary>
+            This fucntion is called when the app detects a MouseDownEvent in the board panel, while the game is in Play Mode.
+            </summary>
+            <param name="e"></param>
+            <param name="gridSquareLoc">This is the grid square that the user clicks on.</param>
+            <param name="f">The App Form</param>
+            <returns>An ArrayList of worlstate changes that can be used to update the screen</returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.MouseDownEditModeEventHandler(System.Windows.Forms.MouseEventArgs,System.Drawing.Point,System.Windows.Forms.Form)">
+            <summary>
+            This function is called when the app detects a MouseDownEvent, while the game is in Edit Mode.
+            </summary>
+            <param name="e"></param>
+            <param name="gridSquareLoc"></param>
+            <param name="f"></param>
+            <returns>An ArrayList of worlstate changes that can be used to update the screen</returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.PlayerSquareAlreadyExists(System.Int32)">
+            <summary>
+            checks that in edit mode, not more than one player's tank can be placed 
+            upon the grid.
+            </summary>
+            <param name="pid"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.MouseUpPlayModeEventHandler(System.Windows.Forms.MouseEventArgs,System.Drawing.Point,System.Windows.Forms.Form)">
+            <summary>
+            This function is called when the app detects a MouseUpEvent in play mode.
+            </summary>
+            <param name="e"></param>
+            <param name="gridSquareLoc"></param>
+            <param name="f"></param>
+            <returns>An ArrayList of worldstate changes that can be used to update the screen</returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.GetTankLoc">
+            <summary>
+            Gets the Tank location of the current player
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.MouseUpEditModeEventHandler(System.Windows.Forms.MouseEventArgs,System.Drawing.Point,System.Windows.Forms.Form)">
+            <summary>
+            This function is called when the app detects a MouseUpEvent in EditMode
+            </summary>
+            <param name="e"></param>
+            <param name="gridSquareLoc"></param>
+            <param name="f"></param>
+            <returns>An ArrayList of worlstate changes that can be used to update the screen</returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.StartInteractivePlayerTurnEventHandler(System.Windows.Forms.Form)">
+            <summary>
+            This function is called at the start of an interactive player turn.
+            </summary>
+            <returns>An ArrayList of worlstate changes that can be used to update the screen</returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.KeyDownEventHandler(System.Windows.Forms.KeyEventArgs,System.Drawing.Point,System.Windows.Forms.Form)">
+            <summary>
+            This fucntion is called when the app detects a Keyboard, KeyDown event.
+            </summary>
+            <returns>An ArrayList of worlstate changes that can be used to update the screen</returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.KeyUpEventHandler(System.Windows.Forms.KeyEventArgs,System.Drawing.Point,System.Windows.Forms.Form)">
+            <summary>
+            This fucntion is called when the app detects a Keyboard, KeyUp event.
+            </summary>
+            <param name="e"></param>
+            <param name="gridSquareLoc"></param>
+            <param name="f"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.PassTurnEventHandler(System.Drawing.Point,System.Windows.Forms.Form)">
+            <summary>
+            This function is called when a user clicks on the Pass Turn button in the app.
+            Sets up an empty Command
+            </summary>
+            <param name="gridSquareLoc"></param>
+            <param name="f"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.CheckLegalMove(GridWorld.Command)">
+            <summary>
+            This checks the worldstate to see if this command is a valid command for that player.
+            </summary>
+            <param name="c"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.GetPlayerPickupAtGridSquare(System.Drawing.Point)">
+            <summary>
+            Checks the content type of the GridSquare, if the contents are an active colony, and it belongs to the player, then return the bitmap for that ActiveColony, otherwise simply return null.
+            </summary>
+            <param name="gridP"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.TerrainUpdateWorldState(GridWorld.WorldState,System.Int32,System.Int32,System.Int32,System.Int32)">
+            <summary>
+            Used by the terrain editor, this method makes creates a WorldStateChanges and adds it to the worldstates worldstatechanges.
+            Returns and arraylist of worlstatechanges to be rendered to the board.
+            </summary>
+        </member>
+        <member name="M:GridWorld.InputEventHandlers.GetTankCoordinates(System.Int32)">
+            <summary>
+            Returns the coordinates of an active colony for this player, if one exists. 
+            </summary>
+            <param name="player"></param>
+            <returns></returns>
+        </member>
+        <member name="P:GridWorld.InputEventHandlers.currentPlayerID">
+            <summary>
+            The ID of the player whose turn it is.
+            </summary>
+        </member>
+        <member name="T:GridWorld.GameSpecifics">
+            <summary>
+            GameSpecifics contains all of the data needed for a specific game.
+            </summary>
+        </member>
+        <member name="F:GridWorld.GameSpecifics.gameName">
+            <summary>
+            The string name of the Game.
+            </summary>
+        </member>
+        <member name="F:GridWorld.GameSpecifics.gameDllName">
+            <summary>
+            The name of the Game's dll. This may be different to GameName if GameName contains illegal filename characters such as '!'.
+            </summary>
+        </member>
+        <member name="F:GridWorld.GameSpecifics.buttonImageContentType">
+            <summary>
+            The graphic that appears on a players Button in the player list.
+            </summary>
+        </member>
+        <member name="F:GridWorld.GameSpecifics.clientGraphics">
+            <summary>
+            The graphics used by the game client.
+            </summary>
+        </member>
+        <member name="F:GridWorld.GameSpecifics.clientWorldState">
+            <summary>
+            The WorldState used by the game client.
+            </summary>
+        </member>
+        <member name="F:GridWorld.GameSpecifics.serverWorldState">
+            <summary>
+            The WorldState used by the game server.
+            </summary>
+        </member>
+        <member name="F:GridWorld.GameSpecifics.inputEventHandlers">
+            <summary>
+            The event handling functions that deal with mouse clicks etc.
+            </summary>
+        </member>
+        <member name="F:GridWorld.GameSpecifics.webServerResultsFormat">
+            <summary>
+            The format used for diaplying single results and the league table on the web server.
+            </summary>
+        </member>
+        <member name="M:GridWorld.GameSpecifics.#ctor">
+            <summary>
+            Constructor
+            </summary>
+        </member>
+        <member name="M:GridWorld.GameSpecifics.GetDefaultAITurnCommands(GridWorld.IPlayerWorldState,System.Int32)">
+            <summary>
+            Get the commands for the default AI player (that makes a random legal move each turn).
+            </summary>
+            <param name="igrid"></param>
+            <param name="playerid"></param>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.GameSpecifics.DisplayGameSpecificParametersForm">
+            <summary>
+            Allows the user to view and edit the game specific parameters for a game, via a pre created form.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GameSpecifics.GameName">
+            <summary>
+            The name of the Game.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GameSpecifics.GameDllName">
+            <summary>
+            The name of the Game's dll. This may be different to GameName if GameName contains illegal filename characters such as '!'.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GameSpecifics.ButtonImageContentType">
+            <summary>
+            The graphic that appears on a players Button in the player list.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GameSpecifics.TheGameGraphics">
+            <summary>
+            The graphics used by the game client.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GameSpecifics.TheClientWorldState">
+            <summary>
+            The WorldState used by the game client.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GameSpecifics.TheServerWorldState">
+            <summary>
+            The WorldState used by the game server.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GameSpecifics.TheInputEventHandlers">
+            <summary>
+            The event handling functions that deal with mouse clicks etc.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GameSpecifics.TheWebServerResultsFormat">
+            <summary>
+            The format used for displaying single results and the league table on the web server.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GameSpecifics.ClientGameSpecificParameters">
+            <summary>
+            Allows the loading of GameSpecific data, such as, the number of counters required to win the game in OXO,
+            for the game running in the client.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GameSpecifics.ServerGameSpecificParameters">
+            <summary>
+            Allows the loading of GameSpecific data, such as, the number of counters required to win the game in OXO,
+            for the game running in the server.
+            </summary>
+        </member>
+        <member name="T:GridWorld.GridSquare">
+            <summary>
+            The content of a grid square.
+            </summary>
+        </member>
+        <member name="F:GridWorld.GridSquare.player">
+            <summary>
+            Players are numbered 1,2,... (where player = 0 means "no player").
+            </summary>
+        </member>
+        <member name="F:GridWorld.GridSquare.contentType">
+            <summary>
+            The contents of this GridSquare.
+            </summary>
+        </member>
+        <member name="F:GridWorld.GridSquare.ShotsFired">
+            <summary>
+            The number of shots fired by any tank in this square
+            </summary>
+        </member>
+        <member name="F:GridWorld.GridSquare.Kills">
+            <summary>
+            The number of kills by any tank in this square
+            </summary>
+        </member>
+        <member name="F:GridWorld.GridSquare.EmptySquaresSeen">
+            <summary>
+            The number of empty squares seen by any tank in this square
+            </summary>
+        </member>
+        <member name="F:GridWorld.GridSquare.RockSquaresSeen">
+            <summary>
+            The number of empty squares seen by any tank in this square
+            </summary>
+        </member>
+        <member name="M:GridWorld.GridSquare.ToString">
+            <summary>
+            The contents of this grid square in string format.
+            </summary>
+            <returns></returns>
+        </member>
+        <member name="M:GridWorld.GridSquare.IsTank">
+            <summary>
+            Returns true if the Contents of this square is a Tank
+            </summary>
+        </member>
+        <member name="M:GridWorld.GridSquare.#ctor(System.Int32,System.Int32)">
+            <summary>
+            Create an empty grid square at (xcoord, ycoord).
+            </summary>
+        </member>
+        <member name="M:GridWorld.GridSquare.#ctor(System.Int32,System.Int32,GridWorld.GridSquare.ContentType)">
+            <summary>
+            Create a grid square at (xcoord, ycoord) with ContentType ct, not associated with a player.
+            </summary>
+        </member>
+        <member name="M:GridWorld.GridSquare.#ctor(System.Int32,System.Int32,GridWorld.GridSquare.ContentType,System.Int32)">
+            <summary>
+            Create a grid square (xcoord, ycoord) with ContentType ct belonging to player if id p.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GridSquare.X">
+            <summary>
+            The x-coordinate of this grid square.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GridSquare.Y">
+            <summary>
+            The y-coordinate of this grid square.
+            </summary>
+        </member>
+        <member name="P:GridWorld.GridSquare.Player">
+            <summary>
+            The player in this grid square. Players are numbered 1,2,... (where player = 0 means "no player").
+            </summary>
+        </member>
+        <member name="P:GridWorld.GridSquare.Contents">
+            <summary>
+            The contents of a square
+            </summary>
+        </member>
+        <member name="P:GridWorld.GridSquare.ContentString">
+            <summary>
+            The contents of a square
+            </summary>
+        </member>
+        <member name="P:GridWorld.GridSquare.ToolTipText">
+            <summary>
+            The tool tip text displayed when a player hovers over this grid square.
+            </summary>
+        </member>
+        <member name="T:GridWorld.GridSquare.ContentType">
+            <summary>
+            The possible contents of a GridSquare
+            </summary>
+        </member>
+    </members>
+</doc>
